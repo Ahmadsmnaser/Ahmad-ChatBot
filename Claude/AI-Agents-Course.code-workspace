@@ -1,0 +1,226 @@
+# Claude Code Instructions: Wire Frontend Design to Backend
+
+## Context
+
+I have a chatbot project at `/home/siraj/Documents/AI-Agents-Course/section5/chatbot_streamlit/`.
+
+There are two parts:
+1. **Backend (DONE):** A FastAPI backend at `./backend/` — already built, tested, and running on `http://localhost:8000`
+2. **Frontend (DESIGN READY):** A design created in Claude Design that needs to be turned into a working Next.js app wired to the backend
+
+The old Streamlit-based chatbot (root-level `.py` files) will be replaced by this new architecture.
+
+---
+
+## Step 1: Scaffold the Next.js Frontend
+
+Create a Next.js 14+ project in `./frontend/`:
+
+```
+frontend/
+├── src/
+│   ├── app/           # App Router pages
+│   ├── components/    # React components (from Claude Design)
+│   ├── lib/           # API client, utilities, types
+│   ├── hooks/         # Custom React hooks
+│   └── styles/        # Global CSS
+├── public/            # Static assets
+├── tailwind.config.ts
+├── next.config.ts
+└── package.json
+```
+
+Use: TypeScript, Tailwind CSS, App Router. Install: `framer-motion`, `lucide-react`, `react-markdown`, `remark-gfm`, `rehype-highlight`.
+
+---
+
+## Step 2: Create the API Client
+
+Create `src/lib/api.ts` that talks to the FastAPI backend. Here is the exact API contract:
+
+### `GET /api/health`
+Returns: `{ status: "ok" }`
+
+### `GET /api/models`
+Returns:
+```json
+[
+  { "id": "llama-3.1-8b-instant", "name": "Llama 3.1 8B Instant", "description": "Fast and efficient, great for most tasks" },
+  { "id": "llama-3.3-70b-versatile", "name": "Llama 3.3 70B Versatile", "description": "Larger model, better reasoning and quality" },
+  { "id": "mixtral-8x7b-32768", "name": "Mixtral 8x7B", "description": "Mixture-of-experts model with 32K context" }
+]
+```
+
+### `POST /api/chat` (SSE Streaming)
+Request body:
+```json
+{
+  "messages": [{ "role": "user", "content": "Hello" }],
+  "model": "llama-3.1-8b-instant",
+  "temperature": 0.5,
+  "system_prompt": "You are a helpful assistant."
+}
+```
+Returns: Server-Sent Events stream. Each event is `data: <json>\n\n` where JSON is one of:
+- `{ "token": "Hello", "done": false }` — a content chunk
+- `{ "token": "", "done": true, "metadata": { "model": "...", "time": 1.23 } }` — stream complete
+- `{ "error": "Rate limit reached..." }` — error
+
+**Important:** Use `fetch()` with `AbortController` for cancellation. Parse the SSE stream manually (split on `\n\n`, parse `data: ` prefix).
+
+### `GET /api/chats`
+Returns: `[{ id, title, created_at, updated_at, message_count }]` sorted newest first
+
+### `POST /api/chats`
+Request: `{ "title": "New Chat" }` (optional)
+Returns: `{ id, title, created_at, updated_at, message_count, messages: [] }`
+
+### `GET /api/chats/{id}`
+Returns: Full chat session with `messages` array
+
+### `PUT /api/chats/{id}`
+Request: `{ "title": "...", "messages": [...] }` (both optional)
+Returns: Updated chat session
+
+### `DELETE /api/chats/{id}`
+Returns: `{ "status": "deleted", "id": "..." }`
+
+---
+
+## Step 3: Create the SSE Streaming Hook
+
+Create `src/hooks/useChat.ts`:
+- Manages the current chat messages state
+- `sendMessage(content: string)` — adds user message, calls `POST /api/chat` with SSE streaming
+- Accumulates streamed tokens into an assistant message in real-time
+- Supports `cancelStream()` using `AbortController`
+- Tracks `isStreaming` state for UI feedback
+- After stream completes, saves messages to backend via `PUT /api/chats/{id}`
+
+---
+
+## Step 4: Create the Chat Sessions Hook
+
+Create `src/hooks/useChatSessions.ts`:
+- `sessions` — list of all chat sessions (from `GET /api/chats`)
+- `activeSessionId` — currently active chat
+- `createSession()` — calls `POST /api/chats`, sets as active
+- `loadSession(id)` — calls `GET /api/chats/{id}`, loads messages
+- `deleteSession(id)` — calls `DELETE /api/chats/{id}`
+- `renameSession(id, title)` — calls `PUT /api/chats/{id}`
+- Auto-refreshes session list after mutations
+
+---
+
+## Step 5: Integrate the Claude Design Components
+
+Take the components from the Claude Design output and:
+
+1. **Replace mock/static data** with real API calls from the hooks above
+2. **Wire the chat input** to `useChat.sendMessage()`
+3. **Wire the sidebar chat list** to `useChatSessions`
+4. **Wire the model selector / temperature slider** to pass values to `sendMessage()`
+5. **Wire the streaming display** — show tokens as they arrive from SSE
+6. **Wire the "Stop generating" button** to `cancelStream()`
+7. **Wire suggested prompt cards** to auto-send as user messages on click
+
+---
+
+## Step 6: RTL / Bidirectional Text Support
+
+Add to the global CSS:
+```css
+/* Each text element auto-detects direction from content */
+.message-content p,
+.message-content li,
+.message-content h1, .message-content h2, .message-content h3,
+.message-content h4, .message-content h5, .message-content h6,
+.message-content blockquote,
+.message-content td, .message-content th,
+.message-content ol, .message-content ul {
+    unicode-bidi: plaintext;
+    text-align: start;
+}
+
+/* Code always LTR */
+.message-content pre, .message-content code {
+    direction: ltr !important;
+    text-align: left !important;
+    unicode-bidi: embed;
+}
+
+/* Arabic text gets larger size */
+:lang(ar) {
+    font-family: 'IBM Plex Sans Arabic', sans-serif;
+    font-size: 17px;
+    line-height: 1.9;
+}
+```
+
+---
+
+## Step 7: Theme Support
+
+- Light / Dark / System modes stored in `localStorage`
+- Use Tailwind's `dark:` variant with `class` strategy
+- Smooth 300ms transition on theme change
+
+---
+
+## Step 8: Environment Config
+
+Create `frontend/.env.local`:
+```
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+All API calls should use `process.env.NEXT_PUBLIC_API_URL` as the base URL.
+
+---
+
+## Step 9: Proxy Config (Optional)
+
+If CORS causes issues, add to `next.config.ts`:
+```typescript
+async rewrites() {
+  return [
+    {
+      source: '/api/:path*',
+      destination: 'http://localhost:8000/api/:path*',
+    },
+  ];
+}
+```
+
+---
+
+## Step 10: Verify Everything Works
+
+1. Start the backend: `cd backend && source venv/bin/activate && uvicorn main:app --reload --port 8000`
+2. Start the frontend: `cd frontend && npm run dev` (port 3000)
+3. Test: Create a new chat, send a message, verify streaming works, switch chats, delete a chat, change model/temperature, test with Arabic input
+
+---
+
+## Backend Files Reference (DO NOT MODIFY)
+
+The backend is already complete at `./backend/`. These files should not be changed:
+
+| File | Purpose |
+|------|---------|
+| `main.py` | FastAPI app with all endpoints |
+| `llm.py` | LangChain ChatGroq wrapper with SSE streaming |
+| `chat_store.py` | JSON-file chat session CRUD |
+| `config.py` | Environment config and logging |
+| `models.py` | Pydantic request/response schemas |
+| `requirements.txt` | Python dependencies |
+
+---
+
+## Key Constraints
+
+- **DO NOT modify any files in `./backend/`** — the backend is done and tested
+- **DO NOT use mock data in production** — all data comes from the API
+- The backend runs on port 8000, frontend on port 3000
+- SSE streaming is the ONLY way to get chat responses (no REST fallback)
+- The backend expects `messages` as an array of `{ role, content }` objects — strip any `metadata` fields before sending

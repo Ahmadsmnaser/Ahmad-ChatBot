@@ -1,0 +1,160 @@
+'use client';
+
+import { useState, useRef, useCallback } from 'react';
+import { streamChat, updateSession, ChatMessage } from '@/lib/api';
+
+export interface UIMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  model?: string;
+  time?: number;
+  tokens?: number;
+  streaming?: boolean;
+}
+
+interface UseChatOptions {
+  model: string;
+  temperature: number;
+  systemPrompt: string;
+  sessionId: string | null;
+  onSessionUpdate?: () => void;
+}
+
+export function useChat({ model, temperature, systemPrompt, sessionId, onSessionUpdate }: UseChatOptions) {
+  const [messages, setMessages] = useState<UIMessage[]>([]);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
+  const abortRef = useRef<AbortController | null>(null);
+  const streamingIdRef = useRef<string>('');
+
+  const loadMessages = useCallback((msgs: ChatMessage[]) => {
+    setMessages(
+      msgs.map((m, i) => ({
+        id: `loaded-${i}`,
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.content,
+      }))
+    );
+  }, []);
+
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+  }, []);
+
+  const sendMessage = useCallback(
+    (content: string) => {
+      if (!content.trim() || isStreaming) return;
+
+      const userMsg: UIMessage = {
+        id: `u-${Date.now()}`,
+        role: 'user',
+        content,
+      };
+
+      setMessages((prev) => {
+        const next = [...prev, userMsg];
+        startStream(next);
+        return next;
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isStreaming, model, temperature, systemPrompt, sessionId]
+  );
+
+  function startStream(currentMessages: UIMessage[]) {
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const streamId = `b-${Date.now()}`;
+    streamingIdRef.current = streamId;
+
+    setIsStreaming(true);
+    setStreamingContent('');
+
+    const apiMessages: ChatMessage[] = currentMessages.map((m) => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: m.content,
+    }));
+
+    let accumulated = '';
+
+    streamChat(
+      { messages: apiMessages, model, temperature, system_prompt: systemPrompt },
+      controller.signal,
+      (token) => {
+        accumulated += token;
+        setStreamingContent(accumulated);
+      },
+      (metadata) => {
+        const finalMsg: UIMessage = {
+          id: streamId,
+          role: 'assistant',
+          content: accumulated,
+          model: metadata?.model ?? model,
+          time: metadata?.time,
+          tokens: Math.round(accumulated.length / 4),
+        };
+        setMessages((prev) => [...prev, finalMsg]);
+        setIsStreaming(false);
+        setStreamingContent('');
+
+        // Persist to backend
+        if (sessionId) {
+          const saved: ChatMessage[] = [...apiMessages, { role: 'assistant', content: accumulated }];
+          updateSession(sessionId, { messages: saved }).then(() => {
+            onSessionUpdate?.();
+          });
+        }
+      },
+      (error) => {
+        console.error('Stream error:', error);
+        if (accumulated) {
+          setMessages((prev) => [
+            ...prev,
+            { id: streamId, role: 'assistant', content: accumulated + '\n\n*[stream interrupted]*' },
+          ]);
+        }
+        setIsStreaming(false);
+        setStreamingContent('');
+      }
+    );
+  }
+
+  const cancelStream = useCallback(() => {
+    abortRef.current?.abort();
+    if (streamingContent) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: streamingIdRef.current,
+          role: 'assistant',
+          content: streamingContent,
+        },
+      ]);
+    }
+    setIsStreaming(false);
+    setStreamingContent('');
+  }, [streamingContent]);
+
+  const regenerate = useCallback(() => {
+    setMessages((prev) => {
+      const idx = [...prev].reverse().findIndex((m) => m.role === 'assistant');
+      if (idx === -1) return prev;
+      const without = prev.slice(0, prev.length - 1 - idx);
+      startStream(without);
+      return without;
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return {
+    messages,
+    isStreaming,
+    streamingContent,
+    sendMessage,
+    cancelStream,
+    regenerate,
+    loadMessages,
+    clearMessages,
+  };
+}
