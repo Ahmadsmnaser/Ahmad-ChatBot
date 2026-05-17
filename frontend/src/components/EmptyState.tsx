@@ -20,7 +20,7 @@ export function EmptyState({ onSuggest }: EmptyStateProps) {
         <MascotLarge />
       </div>
       <h1 className="empty-headline">Hi, how can I help?</h1>
-      <div className="empty-headline empty-headline-ar">مرحبا، كيف فيني أساعدك؟</div>
+      <div className="empty-headline empty-headline-ar">مرحبا، كيف ممكن أساعدك؟</div>
       <div className="empty-sub">Pick a starter or just type below.</div>
 
       <div className="suggest-grid">
