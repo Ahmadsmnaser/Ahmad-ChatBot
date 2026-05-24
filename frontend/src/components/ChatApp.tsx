@@ -177,12 +177,13 @@ export function ChatApp() {
           onDelete={activeSessionId ? () => handleDeleteSession(activeSessionId) : undefined}
         />
 
+        <MessageNavDots messages={messages} isStreaming={isStreaming} />
+
         <div className="messages-wrap">
           {showEmpty ? (
             <EmptyState onSuggest={handleSuggest} />
           ) : (
             <>
-              <MessageNavDots messages={messages} isStreaming={isStreaming} />
               <div className="messages">
               {messages.map((m) => (
                 <div key={m.id} id={`msg-${m.id}`}>

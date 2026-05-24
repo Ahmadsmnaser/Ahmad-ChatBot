@@ -10,6 +10,7 @@ interface Props {
 
 export function MessageNavDots({ messages, isStreaming }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => {
@@ -45,7 +46,7 @@ export function MessageNavDots({ messages, isStreaming }: Props) {
     setTimeout(() => el.classList.remove('msg-highlight'), 1000);
   };
 
-  const allDots = [
+  const allDots: (UIMessage | { id: string; role: 'assistant'; content: string })[] = [
     ...messages,
     ...(isStreaming ? [{ id: 'streaming', role: 'assistant' as const, content: '' }] : []),
   ];
@@ -54,15 +55,34 @@ export function MessageNavDots({ messages, isStreaming }: Props) {
 
   return (
     <div className="nav-dots" aria-label="Message navigation" role="navigation">
-      {allDots.map((m) => (
-        <button
-          key={m.id}
-          className={`nav-dot role-${m.role}${activeId === m.id ? ' active' : ''}`}
-          onClick={() => scrollTo(m.id)}
-          aria-label={`Go to ${m.role} message`}
-          title={m.role === 'user' ? 'User message' : 'Assistant message'}
-        />
-      ))}
+      {allDots.map((m) => {
+        const preview = m.id === 'streaming'
+          ? 'Generating…'
+          : m.content.trim().slice(0, 55) + (m.content.length > 55 ? '…' : '');
+
+        return (
+          <div
+            key={m.id}
+            className="nav-dot-wrap"
+            onMouseEnter={() => setHoveredId(m.id)}
+            onMouseLeave={() => setHoveredId(null)}
+          >
+            <button
+              className={`nav-dot role-${m.role}${activeId === m.id ? ' active' : ''}`}
+              onClick={() => scrollTo(m.id)}
+              aria-label={`Go to ${m.role} message`}
+            />
+            {hoveredId === m.id && (
+              <div className="nav-dot-tooltip">
+                <span className="nav-dot-tooltip-role">
+                  {m.role === 'user' ? 'You' : 'Assistant'}
+                </span>
+                <span className="nav-dot-tooltip-text">{preview}</span>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

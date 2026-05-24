@@ -14,6 +14,7 @@ interface MessageProps {
 
 export function Message({ msg, onRegenerate }: MessageProps) {
   const [copied, setCopied] = useState(false);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
   const isUser = msg.role === 'user';
   const dir = detectDir(msg.content);
 
@@ -48,8 +49,13 @@ export function Message({ msg, onRegenerate }: MessageProps) {
 
         {!isUser && msg.citations && msg.citations.length > 0 && (
           <div className="citations">
-            <div className="citations-label">Sources</div>
-            {msg.citations.map((c, i) => (
+            <button className="citations-toggle" onClick={() => setSourcesOpen(o => !o)} aria-expanded={sourcesOpen}>
+              <svg width="12" height="12" viewBox="0 0 24 24" className={`icon-stroke reasoning-chevron${sourcesOpen ? ' open' : ''}`}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+              Sources ({msg.citations.length})
+            </button>
+            {sourcesOpen && msg.citations.map((c, i) => (
               <div key={i} className="citation-item">
                 <span className="citation-src">
                   {i + 1}. {c.fileName}{c.pageNumber ? `, page ${c.pageNumber}` : ''}
