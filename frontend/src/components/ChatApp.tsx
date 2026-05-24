@@ -118,6 +118,18 @@ export function ChatApp() {
     }
   }, [input, isStreaming, activeSessionId, createNewSession, sendMessage]);
 
+  const handleFileSelect = useCallback(async (file: File) => {
+    if (!activeSessionId) {
+      // No session yet — create one first, then pass its ID directly to upload
+      // because React state won't have updated by the time uploadFile runs
+      const session = await createNewSession('New Chat');
+      setChatTitle(session.title);
+      uploadFile(file, session.id);
+    } else {
+      uploadFile(file);
+    }
+  }, [activeSessionId, createNewSession, uploadFile]);
+
   const handleSuggest = useCallback((text: string) => {
     setInput(text);
   }, []);
@@ -186,23 +198,6 @@ export function ChatApp() {
           )}
         </div>
 
-        {uploadedFiles.length > 0 && (
-          <div className="file-chips">
-            {uploadedFiles.map((f) => (
-              <div key={f.fileName} className={`file-chip status-${f.status}`}>
-                <span className="file-chip-name">{f.fileName}</span>
-                <span className="file-chip-status">
-                  {f.status === 'uploading' ? 'Uploading…'
-                    : f.status === 'processing' ? 'Processing…'
-                    : f.status === 'ready' ? `${f.chunks} chunks`
-                    : 'Failed'}
-                </span>
-              </div>
-            ))}
-            <button className="file-chips-clear" onClick={clearRagFiles} title="Clear uploaded files">×</button>
-          </div>
-        )}
-
         <InputDock
           value={input}
           onChange={setInput}
@@ -210,7 +205,9 @@ export function ChatApp() {
           disabled={isStreaming}
           mode={mode}
           onModeChange={setMode}
-          onFileSelect={uploadFile}
+          onFileSelect={handleFileSelect}
+          uploadedFiles={uploadedFiles}
+          onClearFiles={clearRagFiles}
         />
       </main>
     </div>

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { detectDir } from '@/lib/utils';
 import { ModeSelector } from './ModeSelector';
 import { AnswerMode } from '@/hooks/useChat';
+import { UploadedFile } from '@/hooks/useRag';
 
 interface InputDockProps {
   value: string;
@@ -13,9 +14,11 @@ interface InputDockProps {
   mode: AnswerMode;
   onModeChange: (m: AnswerMode) => void;
   onFileSelect?: (file: File) => void;
+  uploadedFiles?: UploadedFile[];
+  onClearFiles?: () => void;
 }
 
-export function InputDock({ value, onChange, onSend, disabled, mode, onModeChange, onFileSelect }: InputDockProps) {
+export function InputDock({ value, onChange, onSend, disabled, mode, onModeChange, onFileSelect, uploadedFiles, onClearFiles }: InputDockProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dir = detectDir(value);
@@ -45,6 +48,22 @@ export function InputDock({ value, onChange, onSend, disabled, mode, onModeChang
   return (
     <div className="input-dock">
       <div style={{ width: '100%', maxWidth: 768, position: 'relative' }}>
+        {uploadedFiles && uploadedFiles.length > 0 && (
+          <div className="file-chips">
+            {uploadedFiles.map((f) => (
+              <div key={f.fileName} className={`file-chip status-${f.status}`}>
+                <span className="file-chip-name">{f.fileName}</span>
+                <span className="file-chip-status">
+                  {f.status === 'uploading' ? 'Uploading…'
+                    : f.status === 'processing' ? 'Processing…'
+                    : f.status === 'ready' ? `${f.chunks} chunks`
+                    : 'Failed'}
+                </span>
+              </div>
+            ))}
+            <button className="file-chips-clear" onClick={onClearFiles} title="Clear uploaded files">×</button>
+          </div>
+        )}
         <ModeSelector value={mode} onChange={onModeChange} />
         <div className="input-shell">
           <input

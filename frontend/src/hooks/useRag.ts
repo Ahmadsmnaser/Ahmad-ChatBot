@@ -8,13 +8,15 @@ export type { UploadedFile, UploadStatus };
 export function useRag(sessionId: string | null) {
   const [files, setFiles] = useState<UploadedFile[]>([]);
 
-  const upload = useCallback(async (file: File) => {
-    if (!sessionId) return;
+  // sid param lets the caller pass a just-created session ID before React's state updates
+  const upload = useCallback(async (file: File, sid?: string) => {
+    const effectiveSid = sid ?? sessionId;
+    if (!effectiveSid) return;
 
     setFiles((prev) => [...prev, { fileName: file.name, chunks: 0, status: 'uploading' }]);
 
     try {
-      const result = await uploadFile(sessionId, file, (status) => {
+      const result = await uploadFile(effectiveSid, file, (status) => {
         setFiles((prev) =>
           prev.map((f) => (f.fileName === file.name ? { ...f, status } : f))
         );
