@@ -5,10 +5,9 @@ import { UIMessage } from '@/hooks/useChat';
 
 interface Props {
   messages: UIMessage[];
-  isStreaming: boolean;
 }
 
-export function MessageNavDots({ messages, isStreaming }: Props) {
+export function MessageNavDots({ messages }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -46,10 +45,7 @@ export function MessageNavDots({ messages, isStreaming }: Props) {
     setTimeout(() => el.classList.remove('msg-highlight'), 1000);
   };
 
-  const allDots: (UIMessage | { id: string; role: 'assistant'; content: string })[] = [
-    ...messages,
-    ...(isStreaming ? [{ id: 'streaming', role: 'assistant' as const, content: '' }] : []),
-  ];
+  const allDots = messages.filter((m) => m.role === 'user');
 
   if (allDots.length < 2) return null;
 

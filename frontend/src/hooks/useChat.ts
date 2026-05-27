@@ -42,9 +42,10 @@ interface UseChatOptions {
   sessionId: string | null;
   mode: AnswerMode;
   onSessionUpdate?: () => void;
+  onStreamDone?: () => void;
 }
 
-export function useChat({ model, temperature, systemPrompt, sessionId, mode, onSessionUpdate }: UseChatOptions) {
+export function useChat({ model, temperature, systemPrompt, sessionId, mode, onSessionUpdate, onStreamDone }: UseChatOptions) {
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
@@ -133,6 +134,7 @@ export function useChat({ model, temperature, systemPrompt, sessionId, mode, onS
         setMessages((prev) => [...prev, finalMsg]);
         setIsStreaming(false);
         setStreamingContent('');
+        onStreamDone?.();
 
         // Persist to backend
         if (sessionId) {

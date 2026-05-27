@@ -1,6 +1,10 @@
-"""Extract plain text from uploaded files (PDF, TXT, MD)."""
+"""Extract text from uploaded files using UnstructuredFileLoader."""
 
+import os
+import tempfile
 from typing import TypedDict
+
+from langchain_community.document_loaders import UnstructuredFileLoader
 
 
 class PageChunk(TypedDict):
@@ -11,36 +15,33 @@ class PageChunk(TypedDict):
 
 def extract_text(file_bytes: bytes, filename: str) -> list[PageChunk]:
     """Extract text from file bytes. Raises ValueError on unsupported or empty files."""
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    suffix = "." + filename.rsplit(".", 1)[-1] if "." in filename else ""
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(file_bytes)
+        tmp_path = tmp.name
 
-    if ext == "pdf":
-        return _extract_pdf(file_bytes, filename)
-    elif ext in ("txt", "md"):
-        return _extract_plain(file_bytes, filename)
-    else:
-        raise ValueError(f"Unsupported file type: .{ext}")
+    try:
+        loader = UnstructuredFileLoader(tmp_path, mode="elements")
+        docs = loader.load()
+    finally:
+        os.unlink(tmp_path)
 
+    if not docs:
+        raise ValueError("File appears to be empty or unreadable")
 
-def _extract_pdf(file_bytes: bytes, filename: str) -> list[PageChunk]:
-    import io
-    from pypdf import PdfReader
-
-    reader = PdfReader(io.BytesIO(file_bytes))
     chunks: list[PageChunk] = []
-
-    for i, page in enumerate(reader.pages):
-        text = page.extract_text() or ""
-        text = text.strip()
-        if text:
-            chunks.append({"text": text, "page_number": i + 1, "source_file": filename})
+    for doc in docs:
+        text = doc.page_content.strip()
+        if not text:
+            continue
+        page_number = doc.metadata.get("page_number")
+        chunks.append({
+            "text": text,
+            "page_number": int(page_number) if page_number is not None else None,
+            "source_file": filename,
+        })
 
     if not chunks:
         raise ValueError("File appears to be empty or unreadable")
+
     return chunks
-
-
-def _extract_plain(file_bytes: bytes, filename: str) -> list[PageChunk]:
-    text = file_bytes.decode("utf-8", errors="replace").strip()
-    if not text:
-        raise ValueError("File appears to be empty or unreadable")
-    return [{"text": text, "page_number": 1, "source_file": filename}]

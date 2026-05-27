@@ -15,10 +15,11 @@ interface InputDockProps {
   onModeChange: (m: AnswerMode) => void;
   onFileSelect?: (file: File) => void;
   uploadedFiles?: UploadedFile[];
-  onClearFiles?: () => void;
+  onRemoveFile?: (fileName: string) => void;
+  hasMessages?: boolean;
 }
 
-export function InputDock({ value, onChange, onSend, disabled, mode, onModeChange, onFileSelect, uploadedFiles, onClearFiles }: InputDockProps) {
+export function InputDock({ value, onChange, onSend, disabled, mode, onModeChange, onFileSelect, uploadedFiles, onRemoveFile, hasMessages }: InputDockProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dir = detectDir(value);
@@ -59,12 +60,17 @@ export function InputDock({ value, onChange, onSend, disabled, mode, onModeChang
                     : f.status === 'ready' ? `${f.chunks} chunks`
                     : 'Failed'}
                 </span>
+                <button
+                  className="file-chip-remove"
+                  onClick={() => onRemoveFile?.(f.fileName)}
+                  title="Remove file"
+                  aria-label={`Remove ${f.fileName}`}
+                >×</button>
               </div>
             ))}
-            <button className="file-chips-clear" onClick={onClearFiles} title="Clear uploaded files">×</button>
           </div>
         )}
-        <ModeSelector value={mode} onChange={onModeChange} />
+        {!hasMessages && <ModeSelector value={mode} onChange={onModeChange} />}
         <div className="input-shell">
           <input
             type="file"

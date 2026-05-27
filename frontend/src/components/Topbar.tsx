@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { detectDir } from '@/lib/utils';
+import { translations, Language } from '@/lib/i18n';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -12,13 +13,25 @@ interface TopbarProps {
   onThemeModeChange: (v: ThemeMode) => void;
   onMobileMenu?: () => void;
   onDelete?: () => void;
+  onSettingsOpen: () => void;
+  lang: Language;
 }
 
-export function Topbar({ title, onTitleChange, themeMode, onThemeModeChange, onMobileMenu, onDelete }: TopbarProps) {
+export function Topbar({
+  title,
+  onTitleChange,
+  themeMode,
+  onThemeModeChange,
+  onMobileMenu,
+  onDelete,
+  onSettingsOpen,
+  lang,
+}: TopbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const themeRef = useRef<HTMLDivElement>(null);
+  const t = translations[lang];
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -30,13 +43,33 @@ export function Topbar({ title, onTitleChange, themeMode, onThemeModeChange, onM
   }, []);
 
   return (
-    <header className="topbar">
+    <header className="topbar" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button className="icon-btn" onClick={onMobileMenu} aria-label="Open menu" style={{ display: 'none' }}>
+        <button
+          className="icon-btn mobile-menu-btn"
+          onClick={onMobileMenu}
+          aria-label="Open menu"
+          style={{ display: 'none' }}
+        >
           <svg width="20" height="20" viewBox="0 0 24 24" className="icon-stroke" aria-hidden="true">
-            <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
+        
+        {/* Settings button in the top left corner (shown when sidebar is collapsed/mobile) */}
+        <button
+          className="icon-btn topbar-settings-btn"
+          onClick={onSettingsOpen}
+          aria-label={t.settings}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" className="icon-stroke" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.36.15.67.39.91.71.24.32.39.7.42 1.09 0 .39-.13.78-.36 1.1A1.65 1.65 0 0 0 19.4 15z" />
+          </svg>
+        </button>
+
         <input
           className="chat-title-input"
           value={title}
@@ -61,7 +94,9 @@ export function Topbar({ title, onTitleChange, themeMode, onThemeModeChange, onM
           </button>
           {themeMenuOpen && (
             <div className="menu" style={{ minWidth: 220, padding: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '2px 4px 8px' }}>Theme</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '2px 4px 8px' }}>
+                {t.theme}
+              </div>
               <div className="theme-mode-row">
                 {(['light', 'dark', 'system'] as ThemeMode[]).map((m) => (
                   <button
@@ -69,7 +104,7 @@ export function Topbar({ title, onTitleChange, themeMode, onThemeModeChange, onM
                     className={`theme-mode-btn ${themeMode === m ? 'active' : ''}`}
                     onClick={() => { onThemeModeChange(m); setThemeMenuOpen(false); }}
                   >
-                    {m.charAt(0).toUpperCase() + m.slice(1)}
+                    {t[`theme${m.charAt(0).toUpperCase() + m.slice(1) as 'Light' | 'Dark' | 'System'}`]}
                   </button>
                 ))}
               </div>
@@ -80,7 +115,9 @@ export function Topbar({ title, onTitleChange, themeMode, onThemeModeChange, onM
         <div style={{ position: 'relative' }} ref={menuRef}>
           <button className="icon-btn" onClick={() => setMenuOpen((o) => !o)} aria-label="More options">
             <svg width="18" height="18" viewBox="0 0 24 24" className="icon-stroke" aria-hidden="true">
-              <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
+              <circle cx="12" cy="12" r="1" />
+              <circle cx="19" cy="12" r="1" />
+              <circle cx="5" cy="12" r="1" />
             </svg>
           </button>
           {menuOpen && (
@@ -92,7 +129,7 @@ export function Topbar({ title, onTitleChange, themeMode, onThemeModeChange, onM
                     <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6" />
                     <path d="M10 11v6M14 11v6" />
                   </svg>
-                  Delete chat
+                  {t.deleteChat}
                 </button>
               )}
             </div>

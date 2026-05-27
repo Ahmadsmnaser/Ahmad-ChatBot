@@ -10,6 +10,10 @@ import { useChat, AnswerMode } from '@/hooks/useChat';
 import { useChatSessions } from '@/hooks/useChatSessions';
 import { useRag } from '@/hooks/useRag';
 import { MessageNavDots } from './MessageNavDots';
+import { useSettings } from '@/hooks/useSettings';
+import { translations } from '@/lib/i18n';
+import { SettingsModal } from './SettingsModal';
+import { fetchSession } from '@/lib/api';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -27,14 +31,79 @@ export function ChatApp() {
   const [input, setInput] = useState('');
   const [chatTitle, setChatTitle] = useState('New Chat');
   const [mode, setMode] = useState<AnswerMode>('simple');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const { settings, updateSettings, loaded: settingsLoaded } = useSettings();
+  const t = translations[settings.lang];
+
+  // Synth bubble sound generator using Web Audio API
+  const playSynthSound = useCallback((type: 'send' | 'recv') => {
+    if (!settings.soundsEnabled) return;
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+
+      if (type === 'send') {
+        // Soft cute synth bubble pop for sending messages
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.type = 'sine';
+        const now = ctx.currentTime;
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(600, now + 0.12);
+
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+
+        osc.start(now);
+        osc.stop(now + 0.12);
+      } else {
+        // Double pitch pop for receiving messages
+        const now = ctx.currentTime;
+
+        // Tone 1
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(320, now);
+        osc1.frequency.exponentialRampToValueAtTime(480, now + 0.08);
+        gain1.gain.setValueAtTime(0.15, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc1.start(now);
+        osc1.stop(now + 0.08);
+
+        // Tone 2 (delayed, higher frequency)
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(480, now + 0.07);
+        osc2.frequency.exponentialRampToValueAtTime(720, now + 0.18);
+        gain2.gain.setValueAtTime(0.15, now + 0.07);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+        osc2.start(now + 0.07);
+        osc2.stop(now + 0.18);
+      }
+    } catch (e) {
+      console.error('Failed to play synth sound', e);
+    }
+  }, [settings.soundsEnabled]);
 
   const {
     sessions, activeSessionId, refresh: refreshSessions,
     createNewSession, loadSession, removeSession, renameSession,
   } = useChatSessions();
 
-  const { files: uploadedFiles, upload: uploadFile, clear: clearRagFiles } = useRag(activeSessionId);
+  const { files: uploadedFiles, upload: uploadFile, remove: removeRagFile } = useRag(activeSessionId);
 
   const {
     messages, isStreaming, streamingContent,
@@ -45,6 +114,7 @@ export function ChatApp() {
     sessionId: activeSessionId,
     mode,
     onSessionUpdate: refreshSessions,
+    onStreamDone: () => playSynthSound('recv'),
   });
 
   // Apply theme
@@ -82,18 +152,18 @@ export function ChatApp() {
   }, [loadSession, loadMessages, clearMessages]);
 
   const handleNewChat = useCallback(async () => {
-    const session = await createNewSession();
+    const session = await createNewSession(t.newChat);
     setChatTitle(session.title);
     clearMessages();
-  }, [createNewSession, clearMessages]);
+  }, [createNewSession, clearMessages, t]);
 
   const handleDeleteSession = useCallback(async (id: string) => {
     await removeSession(id);
     if (id === activeSessionId) {
       clearMessages();
-      setChatTitle('New Chat');
+      setChatTitle(t.newChat);
     }
-  }, [removeSession, activeSessionId, clearMessages]);
+  }, [removeSession, activeSessionId, clearMessages, t]);
 
   const handleTitleChange = useCallback(async (title: string) => {
     setChatTitle(title);
@@ -106,6 +176,7 @@ export function ChatApp() {
     if (!input.trim() || isStreaming) return;
     const text = input;
     setInput('');
+    playSynthSound('send');
 
     // Auto-create session if none active
     if (!activeSessionId) {
@@ -116,23 +187,58 @@ export function ChatApp() {
     } else {
       sendMessage(text);
     }
-  }, [input, isStreaming, activeSessionId, createNewSession, sendMessage]);
+  }, [input, isStreaming, activeSessionId, createNewSession, sendMessage, playSynthSound]);
 
   const handleFileSelect = useCallback(async (file: File) => {
     if (!activeSessionId) {
       // No session yet — create one first, then pass its ID directly to upload
-      // because React state won't have updated by the time uploadFile runs
-      const session = await createNewSession('New Chat');
+      const session = await createNewSession(t.newChat);
       setChatTitle(session.title);
       uploadFile(file, session.id);
     } else {
       uploadFile(file);
     }
-  }, [activeSessionId, createNewSession, uploadFile]);
+  }, [activeSessionId, createNewSession, uploadFile, t]);
 
   const handleSuggest = useCallback((text: string) => {
     setInput(text);
   }, []);
+
+  const handleClearAll = useCallback(async () => {
+    if (!window.confirm(t.clearConfirm)) return;
+    try {
+      await Promise.all(sessions.map((s) => removeSession(s.id)));
+      clearMessages();
+      setChatTitle(t.newChat);
+      setSettingsOpen(false);
+    } catch (e) {
+      console.error('Failed to clear sessions', e);
+    }
+  }, [sessions, removeSession, clearMessages, t]);
+
+  const handleExportData = useCallback(async () => {
+    try {
+      const fullSessions = await Promise.all(
+        sessions.map(async (s) => {
+          try {
+            return await fetchSession(s.id);
+          } catch {
+            return s;
+          }
+        })
+      );
+
+      const blob = new Blob([JSON.stringify(fullSessions, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `chatbot_history_export_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Failed to export sessions', e);
+    }
+  }, [sessions]);
 
   const showEmpty = messages.length === 0 && !isStreaming;
 
@@ -141,6 +247,8 @@ export function ChatApp() {
       className="app"
       data-collapsed={collapsed}
       data-mobile-open={mobileOpen}
+      data-font-size={settings.fontSize}
+      dir={settings.lang === 'ar' ? 'rtl' : 'ltr'}
     >
       <div className="bg-blobs" aria-hidden="true">
         <div className="bg-blob b1" />
@@ -159,41 +267,50 @@ export function ChatApp() {
         onDelete={handleDeleteSession}
         onNewChat={handleNewChat}
         model={model}
-        onModelChange={setModel}
         temperature={temperature}
-        onTempChange={setTemperature}
-        systemPrompt={systemPrompt}
-        onSysPromptChange={setSystemPrompt}
+        onSettingsOpen={() => setSettingsOpen(true)}
+        lang={settings.lang}
         onMobileClose={() => setMobileOpen(false)}
       />
 
       <main className="main">
         <Topbar
-          title={chatTitle}
+          title={chatTitle === 'New Chat' ? t.newChat : chatTitle}
           onTitleChange={handleTitleChange}
           themeMode={themeMode}
           onThemeModeChange={setThemeMode}
           onMobileMenu={() => setMobileOpen(true)}
           onDelete={activeSessionId ? () => handleDeleteSession(activeSessionId) : undefined}
+          onSettingsOpen={() => setSettingsOpen(true)}
+          lang={settings.lang}
         />
 
-        <MessageNavDots messages={messages} isStreaming={isStreaming} />
+        <MessageNavDots messages={messages} />
 
         <div className="messages-wrap">
           {showEmpty ? (
-            <EmptyState onSuggest={handleSuggest} />
+            <EmptyState onSuggest={handleSuggest} lang={settings.lang} />
           ) : (
             <>
               <div className="messages">
-              {messages.map((m) => (
-                <div key={m.id} id={`msg-${m.id}`}>
-                  <Message msg={m} onRegenerate={m.role === 'assistant' ? regenerate : undefined} />
-                </div>
-              ))}
-              {isStreaming && (
-                <StreamingMessage content={streamingContent} onStop={cancelStream} />
-              )}
-              <div ref={messagesEndRef} />
+                {messages.map((m) => (
+                  <div key={m.id} id={`msg-${m.id}`}>
+                    <Message
+                      msg={m}
+                      onRegenerate={m.role === 'assistant' ? regenerate : undefined}
+                      userNickname={settings.nickname}
+                      lang={settings.lang}
+                    />
+                  </div>
+                ))}
+                {isStreaming && (
+                  <StreamingMessage
+                    content={streamingContent}
+                    onStop={cancelStream}
+                    lang={settings.lang}
+                  />
+                )}
+                <div ref={messagesEndRef} />
               </div>
             </>
           )}
@@ -208,9 +325,27 @@ export function ChatApp() {
           onModeChange={setMode}
           onFileSelect={handleFileSelect}
           uploadedFiles={uploadedFiles}
-          onClearFiles={clearRagFiles}
+          onRemoveFile={removeRagFile}
+          hasMessages={messages.length > 0}
         />
       </main>
+
+      <SettingsModal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onUpdate={updateSettings}
+        themeMode={themeMode}
+        onThemeChange={setThemeMode}
+        model={model}
+        onModelChange={setModel}
+        temperature={temperature}
+        onTempChange={setTemperature}
+        systemPrompt={systemPrompt}
+        onSysPromptChange={setSystemPrompt}
+        onClearAll={handleClearAll}
+        onExport={handleExportData}
+      />
     </div>
   );
 }

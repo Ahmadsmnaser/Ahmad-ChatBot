@@ -6,17 +6,21 @@ import { detectDir } from '@/lib/utils';
 import { renderMarkdown } from '@/lib/markdown';
 import { UIMessage } from '@/hooks/useChat';
 import { ReasoningSummaryBlock } from './ReasoningSummary';
+import { translations, Language } from '@/lib/i18n';
 
 interface MessageProps {
   msg: UIMessage;
   onRegenerate?: () => void;
+  userNickname?: string;
+  lang?: Language;
 }
 
-export function Message({ msg, onRegenerate }: MessageProps) {
+export function Message({ msg, onRegenerate, userNickname = 'User', lang = 'en' }: MessageProps) {
   const [copied, setCopied] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const isUser = msg.role === 'user';
   const dir = detectDir(msg.content);
+  const t = translations[lang];
 
   const onCopy = () => {
     navigator.clipboard?.writeText(msg.content);
@@ -24,10 +28,12 @@ export function Message({ msg, onRegenerate }: MessageProps) {
     setTimeout(() => setCopied(false), 1400);
   };
 
+  const initialLetter = userNickname.trim() ? userNickname.trim().charAt(0).toUpperCase() : 'U';
+
   return (
     <div className={`msg ${isUser ? 'user' : 'bot'}`}>
       <div className={`avatar ${isUser ? 'user' : 'bot'}`} aria-hidden="true">
-        {isUser ? 'A' : <Mascot size={22} />}
+        {isUser ? initialLetter : <Mascot size={22} />}
       </div>
       <div className="msg-body">
         {isUser ? (
@@ -53,7 +59,7 @@ export function Message({ msg, onRegenerate }: MessageProps) {
               <svg width="12" height="12" viewBox="0 0 24 24" className={`icon-stroke reasoning-chevron${sourcesOpen ? ' open' : ''}`}>
                 <polyline points="6 9 12 15 18 9" />
               </svg>
-              Sources ({msg.citations.length})
+              {t.citations} ({msg.citations.length})
             </button>
             {sourcesOpen && msg.citations.map((c, i) => (
               <div key={i} className="citation-item">
@@ -93,8 +99,9 @@ export function Message({ msg, onRegenerate }: MessageProps) {
   );
 }
 
-export function StreamingMessage({ content, onStop }: { content: string; onStop: () => void }) {
+export function StreamingMessage({ content, onStop, lang = 'en' }: { content: string; onStop: () => void; lang?: Language }) {
   const dir = detectDir(content);
+  const t = translations[lang];
   return (
     <div>
       {content ? (
@@ -124,7 +131,7 @@ export function StreamingMessage({ content, onStop }: { content: string; onStop:
           <svg width="12" height="12" viewBox="0 0 24 24" className="icon-stroke" aria-hidden="true">
             <rect x="6" y="6" width="12" height="12" rx="2" />
           </svg>
-          Stop generating
+          {t.stopGenerating}
         </button>
       </div>
     </div>

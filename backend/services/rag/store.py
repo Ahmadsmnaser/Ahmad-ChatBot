@@ -1,61 +1,56 @@
 """Chroma vector store — one collection per session."""
 
-import chromadb
-from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
+from langchain_chroma import Chroma
+from langchain_core.documents import Document
+from langchain_huggingface import HuggingFaceEmbeddings
 
 from .chunker import Chunk
 
-_EMBED_FN = SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+_EMBEDDINGS = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 
 class RAGStore:
     def __init__(self, session_id: str) -> None:
         self._session_id = session_id
-        self._client = chromadb.Client()
-        self._collection = self._client.get_or_create_collection(
-            name=f"session_{session_id}",
-            embedding_function=_EMBED_FN,
+        self._store = Chroma(
+            collection_name=f"session_{session_id}",
+            embedding_function=_EMBEDDINGS,
         )
 
     async def add_chunks(self, chunks: list[Chunk]) -> None:
         if not chunks:
             return
-        self._collection.add(
-            ids=[str(c["chunkIndex"]) for c in chunks],
-            documents=[c["text"] for c in chunks],
-            metadatas=[
-                {
+        docs = [
+            Document(
+                page_content=c["text"],
+                metadata={
                     "fileName": c["fileName"],
                     "pageNumber": c["pageNumber"] if c["pageNumber"] is not None else -1,
                     "chunkIndex": c["chunkIndex"],
-                }
-                for c in chunks
-            ],
-        )
+                },
+            )
+            for c in chunks
+        ]
+        self._store.add_documents(docs)
 
     async def search(self, query: str, top_k: int = 4) -> list[dict]:
-        count = self._collection.count()
+        count = self._store._collection.count()
         if count == 0:
             return []
 
         k = min(top_k, count)
-        results = self._collection.query(query_texts=[query], n_results=k)
+        results = self._store.similarity_search_with_relevance_scores(query, k=k)
 
-        retrieved: list[dict] = []
-        docs = results.get("documents", [[]])[0]
-        metas = results.get("metadatas", [[]])[0]
-        distances = results.get("distances", [[]])[0]
-
-        for doc, meta, dist in zip(docs, metas, distances):
-            retrieved.append({
-                "text": doc,
-                "fileName": meta["fileName"],
-                "pageNumber": meta["pageNumber"] if meta["pageNumber"] != -1 else None,
-                "chunkIndex": meta["chunkIndex"],
-                "score": round(1 - dist, 4),
-            })
-
-        return retrieved
+        return [
+            {
+                "text": doc.page_content,
+                "fileName": doc.metadata["fileName"],
+                "pageNumber": doc.metadata["pageNumber"] if doc.metadata["pageNumber"] != -1 else None,
+                "chunkIndex": doc.metadata["chunkIndex"],
+                "score": round(score, 4),
+            }
+            for doc, score in results
+        ]
 
     def clear(self) -> None:
-        self._client.delete_collection(f"session_{self._session_id}")
+        self._store.delete_collection()
