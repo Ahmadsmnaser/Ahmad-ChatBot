@@ -13,7 +13,7 @@ import { MessageNavDots } from './MessageNavDots';
 import { useSettings } from '@/hooks/useSettings';
 import { translations } from '@/lib/i18n';
 import { SettingsModal } from './SettingsModal';
-import { fetchSession } from '@/lib/api';
+import { fetchSession, fetchModes, ModeConfig } from '@/lib/api';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -31,6 +31,7 @@ export function ChatApp() {
   const [input, setInput] = useState('');
   const [chatTitle, setChatTitle] = useState('New Chat');
   const [mode, setMode] = useState<AnswerMode>('simple');
+  const [modeConfigs, setModeConfigs] = useState<Record<string, ModeConfig>>({});
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -116,6 +117,21 @@ export function ChatApp() {
     onSessionUpdate: refreshSessions,
     onStreamDone: () => playSynthSound('recv'),
   });
+
+  // Fetch mode configs once on mount
+  useEffect(() => {
+    fetchModes().then(setModeConfigs).catch(console.error);
+  }, []);
+
+  // When mode changes, auto-apply that mode's model + temperature defaults
+  const handleModeChange = useCallback((newMode: AnswerMode) => {
+    setMode(newMode);
+    const cfg = modeConfigs[newMode];
+    if (cfg) {
+      setModel(cfg.model);
+      setTemperature(cfg.temperature);
+    }
+  }, [modeConfigs]);
 
   // Apply theme
   useEffect(() => {
@@ -322,7 +338,8 @@ export function ChatApp() {
           onSend={handleSend}
           disabled={isStreaming}
           mode={mode}
-          onModeChange={setMode}
+          onModeChange={handleModeChange}
+          modeConfigs={modeConfigs}
           onFileSelect={handleFileSelect}
           uploadedFiles={uploadedFiles}
           onRemoveFile={removeRagFile}

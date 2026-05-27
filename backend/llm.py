@@ -13,12 +13,19 @@ from config import DEFAULT_MODEL, DEFAULT_TEMPERATURE, logger
 _llm_cache: dict[str, ChatGroq] = {}
 
 
-def get_llm(model: str = DEFAULT_MODEL, temperature: float = DEFAULT_TEMPERATURE) -> ChatGroq:
-    """Return a ChatGroq instance, cached by (model, temperature) key."""
-    cache_key = f"{model}:{temperature}"
+def get_llm(
+    model: str = DEFAULT_MODEL,
+    temperature: float = DEFAULT_TEMPERATURE,
+    max_tokens: int | None = None,
+) -> ChatGroq:
+    """Return a ChatGroq instance, cached by (model, temperature, max_tokens) key."""
+    cache_key = f"{model}:{temperature}:{max_tokens}"
     if cache_key not in _llm_cache:
-        logger.info("Creating LLM instance: model=%s, temperature=%s", model, temperature)
-        _llm_cache[cache_key] = ChatGroq(model=model, temperature=temperature)
+        logger.info("Creating LLM instance: model=%s, temperature=%s, max_tokens=%s", model, temperature, max_tokens)
+        kwargs: dict = {"model": model, "temperature": temperature}
+        if max_tokens is not None:
+            kwargs["max_tokens"] = max_tokens
+        _llm_cache[cache_key] = ChatGroq(**kwargs)
     return _llm_cache[cache_key]
 
 
@@ -56,6 +63,7 @@ async def stream_llm(
     messages: list[dict],
     model: str = DEFAULT_MODEL,
     temperature: float = DEFAULT_TEMPERATURE,
+    max_tokens: int | None = None,
     citations: list[dict] | None = None,
     reasoning_summary: dict | None = None,
 ) -> AsyncGenerator[str, None]:
@@ -65,7 +73,7 @@ async def stream_llm(
     """
     import json
 
-    llm = get_llm(model, temperature)
+    llm = get_llm(model, temperature, max_tokens)
     start = time.time()
 
     try:

@@ -11,6 +11,16 @@ export interface Model {
   description: string;
 }
 
+export interface ModeConfig {
+  label: string;
+  description: string;
+  model: string;
+  model_short: string;
+  temperature: number;
+  max_tokens: number;
+  rag_top_k: number;
+}
+
 export interface ChatSession {
   id: string;
   title: string;
@@ -64,6 +74,11 @@ export async function fetchHealth(): Promise<{ status: string }> {
 
 export async function fetchModels(): Promise<Model[]> {
   const res = await fetch(`${BASE}/api/models`);
+  return res.json();
+}
+
+export async function fetchModes(): Promise<Record<string, ModeConfig>> {
+  const res = await fetch(`${BASE}/api/modes`);
   return res.json();
 }
 

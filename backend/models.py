@@ -55,3 +55,16 @@ class ModelInfo(BaseModel):
     id: str
     name: str
     description: str
+
+
+# ── Modes Endpoint ────────────────────────────────────────────────────────────
+
+class ModeConfigResponse(BaseModel):
+    """Public metadata for a single answer mode (excludes internal prompt)."""
+    label: str
+    description: str
+    model: str
+    model_short: str
+    temperature: float
+    max_tokens: int
+    rag_top_k: int

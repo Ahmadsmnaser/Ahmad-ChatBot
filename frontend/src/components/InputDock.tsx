@@ -6,6 +6,7 @@ import { Language } from '@/lib/i18n';
 import { ModeSelector } from './ModeSelector';
 import { AnswerMode } from '@/hooks/useChat';
 import { UploadedFile } from '@/hooks/useRag';
+import { ModeConfig } from '@/lib/api';
 
 interface InputDockProps {
   value: string;
@@ -14,6 +15,7 @@ interface InputDockProps {
   disabled?: boolean;
   mode: AnswerMode;
   onModeChange: (m: AnswerMode) => void;
+  modeConfigs?: Record<string, ModeConfig>;
   onFileSelect?: (file: File) => void;
   uploadedFiles?: UploadedFile[];
   onRemoveFile?: (fileName: string) => void;
@@ -21,7 +23,7 @@ interface InputDockProps {
   lang: Language;
 }
 
-export function InputDock({ value, onChange, onSend, disabled, mode, onModeChange, onFileSelect, uploadedFiles, onRemoveFile, hasMessages, lang }: InputDockProps) {
+export function InputDock({ value, onChange, onSend, disabled, mode, onModeChange, modeConfigs, onFileSelect, uploadedFiles, onRemoveFile, hasMessages, lang }: InputDockProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dir = detectDir(value);
@@ -72,7 +74,7 @@ export function InputDock({ value, onChange, onSend, disabled, mode, onModeChang
             ))}
           </div>
         )}
-        {!hasMessages && <ModeSelector value={mode} onChange={onModeChange} lang={lang} />}
+        {!hasMessages && <ModeSelector value={mode} onChange={onModeChange} lang={lang} modeConfigs={modeConfigs} />}
         <div className="input-shell">
           <input
             type="file"

@@ -15,9 +15,10 @@ from models import (
     ChatSessionResponse,
     ChatSessionDetail,
     ModelInfo,
+    ModeConfigResponse,
 )
 from llm import stream_llm
-from services.modes import MODE_PROMPTS
+from services.modes import MODES, get_mode
 from services.rag.extractor import extract_text
 from services.rag.chunker import chunk_pages
 from services.rag.store import RAGStore
@@ -68,6 +69,23 @@ async def get_models():
     return AVAILABLE_MODELS
 
 
+@app.get("/api/modes", response_model=dict[str, ModeConfigResponse])
+async def get_modes():
+    """Return public metadata for all answer modes."""
+    return {
+        mode_id: ModeConfigResponse(
+            label=cfg["label"],
+            description=cfg["description"],
+            model=cfg["model"],
+            model_short=cfg["model_short"],
+            temperature=cfg["temperature"],
+            max_tokens=cfg["max_tokens"],
+            rag_top_k=cfg["rag_top_k"],
+        )
+        for mode_id, cfg in MODES.items()
+    }
+
+
 # ── Chat (Streaming) ─────────────────────────────────────────────────────────
 
 @app.post("/api/chat")
@@ -90,16 +108,18 @@ async def chat_stream(request: ChatRequest):
                 detail=f"Message too long ({len(last_msg.content)} chars). Max: {MAX_INPUT_LENGTH}",
             )
 
+    mode_cfg = get_mode(request.mode)
+
     citations: list[dict] = []
     rag_used = False
 
-    # RAG context injection
+    # RAG context injection using mode-specific top_k
     if request.session_id and request.session_id in _rag_stores:
         store = _rag_stores[request.session_id]
         last_user_msg = next(
             (m.content for m in reversed(request.messages) if m.role == "user"), ""
         )
-        retrieved = await store.search(last_user_msg, top_k=4)
+        retrieved = await store.search(last_user_msg, top_k=mode_cfg["rag_top_k"])
         if retrieved:
             rag_used = True
             citations = format_citations(retrieved)
@@ -111,8 +131,8 @@ async def chat_stream(request: ChatRequest):
         base_system = request.system_prompt
 
     # Prepend mode instruction to system prompt
-    mode_prefix = MODE_PROMPTS.get(request.mode, "")
-    system = f"{mode_prefix}\n\n{base_system}".strip() if mode_prefix else base_system
+    mode_prompt = mode_cfg["prompt"]
+    system = f"{mode_prompt}\n\n{base_system}".strip()
 
     # Build reasoning summary
     reasoning_summary = {
@@ -130,8 +150,8 @@ async def chat_stream(request: ChatRequest):
         messages.append({"role": msg.role, "content": msg.content})
 
     logger.info(
-        "Chat request: model=%s, mode=%s, temperature=%s, messages=%d",
-        request.model, request.mode, request.temperature, len(messages),
+        "Chat request: model=%s, mode=%s, temperature=%s, max_tokens=%d, messages=%d",
+        request.model, request.mode, request.temperature, mode_cfg["max_tokens"], len(messages),
     )
 
     return StreamingResponse(
@@ -139,6 +159,7 @@ async def chat_stream(request: ChatRequest):
             messages,
             model=request.model,
             temperature=request.temperature,
+            max_tokens=mode_cfg["max_tokens"],
             citations=citations,
             reasoning_summary=reasoning_summary,
         ),

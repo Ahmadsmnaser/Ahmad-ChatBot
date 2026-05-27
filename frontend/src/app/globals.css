@@ -338,36 +338,46 @@ input, textarea { font-family: inherit; color: inherit; }
 }
 
 /* ============== MODE SELECTOR ============== */
-.mode-selector {
-  display: flex;
-  gap: 4px;
-  max-width: 768px;
-  margin: 0 auto;
-  padding: 0 24px 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  pointer-events: auto;
-}
-.mode-selector::-webkit-scrollbar { display: none; }
-
-.mode-btn {
+.mode-stepper {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 500;
+  gap: 6px;
+  max-width: 768px;
+  margin: 0 auto;
+  padding: 0 24px 10px;
+  pointer-events: auto;
+}
+.mode-arrow {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
   color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.mode-arrow:hover { background: var(--surface-hover); color: var(--text); border-color: var(--primary-1); }
+
+.mode-current {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 8px;
   background: var(--surface);
   border: 1px solid var(--border);
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: background 150ms, color 150ms, border-color 150ms, transform 100ms;
+  min-width: 0;
 }
-.mode-btn:hover { background: var(--surface-hover); color: var(--text); transform: translateY(-1px); }
-.mode-btn.active { background: var(--primary-grad); color: white; border-color: transparent; box-shadow: 0 2px 8px rgba(155,135,217,0.3); }
-.mode-icon { font-size: 14px; line-height: 1; }
+.mode-icon { font-size: 15px; line-height: 1; flex-shrink: 0; }
+.mode-label { font-size: 13px; font-weight: 600; color: var(--text); flex-shrink: 0; }
+.mode-desc { font-size: 11.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ============== REASONING SUMMARY ============== */
 .reasoning-block { margin-top: 8px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
