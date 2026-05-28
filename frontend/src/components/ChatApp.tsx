@@ -113,7 +113,7 @@ export function ChatApp() {
   const { files: uploadedFiles, upload: uploadFile, remove: removeRagFile } = useRag(activeSessionId, accessToken);
 
   const {
-    messages, isStreaming, streamingContent,
+    messages, isStreaming, isThinking, streamingContent,
     sendMessage, cancelStream, regenerate,
     loadMessages, clearMessages,
   } = useChat({
@@ -354,6 +354,7 @@ export function ChatApp() {
                     content={streamingContent}
                     onStop={cancelStream}
                     lang={settings.lang}
+                    isThinking={isThinking}
                   />
                 )}
                 <div ref={messagesEndRef} />
