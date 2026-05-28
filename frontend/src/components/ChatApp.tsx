@@ -336,7 +336,13 @@ export function ChatApp() {
 
         <div className="messages-wrap">
           {showEmpty ? (
-            <EmptyState onSuggest={handleSuggest} lang={settings.lang} />
+            <EmptyState
+                onSuggest={handleSuggest}
+                lang={settings.lang}
+                isTyping={input.length > 0}
+                isThinking={isThinking}
+                isStreaming={isStreaming}
+              />
           ) : (
             <>
               <div className="messages">

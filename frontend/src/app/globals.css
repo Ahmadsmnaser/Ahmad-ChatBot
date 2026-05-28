@@ -285,9 +285,38 @@ input, textarea { font-family: inherit; color: inherit; }
 
 /* ============== EMPTY STATE ============== */
 .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px 160px; text-align: center; position: relative; overflow: hidden; min-height: 100%; }
-.empty-mascot { animation: mascotFloat 4s ease-in-out infinite, mascotIn 600ms ease-out; }
+.empty-mascot { animation: mascotFloat 4s ease-in-out infinite, mascotIn 600ms ease-out; position: relative; }
 @keyframes mascotIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes mascotFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+/* ── Mascot speech bubble ─────────────────────────────────────────────────── */
+.mascot-bubble {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(5px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px 13px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(155, 135, 217, 0.18);
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 230ms ease, transform 230ms ease;
+}
+.mascot-bubble--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mascot-bubble { transition: opacity 230ms ease; }
+  .mascot-bubble--visible { transform: translateX(-50%) translateY(0); }
+}
 .empty-headline { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; margin: 20px 0 6px; background: linear-gradient(135deg, var(--text) 0%, var(--primary-2) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .empty-headline-ar { font-family: 'IBM Plex Sans Arabic', 'Inter', sans-serif; font-size: 32px; direction: rtl; }
 .empty-sub { color: var(--text-muted); font-size: 15px; margin-bottom: 36px; }

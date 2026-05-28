@@ -21,9 +21,20 @@ const SUGGESTIONS = {
 interface EmptyStateProps {
   onSuggest: (text: string) => void;
   lang?: Language;
+  isTyping?: boolean;
+  isThinking?: boolean;
+  isStreaming?: boolean;
+  hasError?: boolean;
 }
 
-export function EmptyState({ onSuggest, lang = 'en' }: EmptyStateProps) {
+export function EmptyState({
+  onSuggest,
+  lang = 'en',
+  isTyping = false,
+  isThinking = false,
+  isStreaming = false,
+  hasError = false,
+}: EmptyStateProps) {
   const t = translations[lang];
   const list = SUGGESTIONS[lang] || SUGGESTIONS.en;
 
@@ -33,7 +44,13 @@ export function EmptyState({ onSuggest, lang = 'en' }: EmptyStateProps) {
   return (
     <div className="empty-state" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       <div className="empty-mascot">
-        <MascotLarge />
+        <MascotLarge
+          lang={lang}
+          isTyping={isTyping}
+          isThinking={isThinking}
+          isStreaming={isStreaming}
+          hasError={hasError}
+        />
       </div>
       <h1 className="empty-headline">{headline}</h1>
       <div className="empty-sub">{subline}</div>
