@@ -327,6 +327,8 @@ export function ChatApp() {
           lang={settings.lang}
           user={session.user}
           onSignOut={() => signOut()}
+          nickname={settings.nickname}
+          onNicknameChange={(v) => updateSettings({ nickname: v })}
         />
 
         <MessageNavDots messages={messages} />
