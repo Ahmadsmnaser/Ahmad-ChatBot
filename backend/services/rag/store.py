@@ -6,7 +6,14 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 from .chunker import Chunk
 
-_EMBEDDINGS = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+_EMBEDDINGS: HuggingFaceEmbeddings | None = None
+
+
+def get_embeddings() -> HuggingFaceEmbeddings:
+    global _EMBEDDINGS
+    if _EMBEDDINGS is None:
+        _EMBEDDINGS = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    return _EMBEDDINGS
 
 
 class RAGStore:
@@ -14,7 +21,7 @@ class RAGStore:
         self._session_id = session_id
         self._store = Chroma(
             collection_name=f"session_{session_id}",
-            embedding_function=_EMBEDDINGS,
+            embedding_function=get_embeddings(),
         )
 
     async def add_chunks(self, chunks: list[Chunk]) -> None:

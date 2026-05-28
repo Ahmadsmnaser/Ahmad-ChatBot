@@ -3,6 +3,8 @@ uvicorn[standard]
 python-dotenv
 langchain-groq
 langchain-community
+langchain-chroma
+langchain-huggingface
 pydantic>=2.0
 pypdf
 chromadb
