@@ -123,6 +123,7 @@ AVAILABLE_MODELS: list[dict] = [
 # ── Limits ────────────────────────────────────────────────────────────────────
 MAX_HISTORY_LENGTH: int = 40
 MAX_INPUT_LENGTH: int = 4000
+MAX_UPLOAD_SIZE_BYTES: int = 10 * 1024 * 1024
 
 # ── Legacy file storage ───────────────────────────────────────────────────────
 CHATS_DIR: str = os.path.join(DATA_DIR, "chats")

@@ -62,7 +62,7 @@ export function InputDock({ value, onChange, onSend, disabled, mode, onModeChang
                   {f.status === 'uploading' ? 'Uploading…'
                     : f.status === 'processing' ? 'Processing…'
                     : f.status === 'ready' ? `${f.chunks} chunks`
-                    : 'Failed'}
+                    : f.error ?? 'Failed'}
                 </span>
                 <button
                   className="file-chip-remove"

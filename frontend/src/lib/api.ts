@@ -173,19 +173,24 @@ export async function updateSettingsApi(
 
 export type StreamMetadata = SSEToken['metadata'];
 
+export const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+export const MAX_UPLOAD_SIZE_LABEL = '10 MB';
+
 export type UploadStatus = 'idle' | 'uploading' | 'processing' | 'ready' | 'failed';
 
 export interface UploadedFile {
   fileName: string;
   chunks: number;
   status: UploadStatus;
+  error?: string;
 }
 
 export async function uploadFile(
   accessToken: string | undefined,
   sessionId: string,
   file: File,
-  onStatus: (s: UploadStatus) => void
+  onStatus: (s: UploadStatus) => void,
+  signal?: AbortSignal
 ): Promise<UploadedFile> {
   onStatus('uploading');
   const form = new FormData();
@@ -196,6 +201,7 @@ export async function uploadFile(
     method: 'POST',
     headers: authHeaders(accessToken),
     body: form,
+    signal,
   });
   if (!res.ok) {
     onStatus('failed');
@@ -204,6 +210,18 @@ export async function uploadFile(
   const data = await res.json();
   onStatus('ready');
   return data;
+}
+
+export async function deleteRagFile(
+  accessToken: string | undefined,
+  sessionId: string,
+  fileName: string
+): Promise<void> {
+  const res = await fetch(apiUrl(`/api/rag/${sessionId}/files/${encodeURIComponent(fileName)}`), {
+    method: 'DELETE',
+    headers: authHeaders(accessToken),
+  });
+  if (!res.ok) throw new Error(await res.text());
 }
 
 export async function clearRag(accessToken: string | undefined, sessionId: string): Promise<void> {

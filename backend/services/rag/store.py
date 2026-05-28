@@ -59,5 +59,8 @@ class RAGStore:
             for doc, score in results
         ]
 
+    async def delete_file(self, file_name: str) -> None:
+        self._store.delete(where={"fileName": file_name})
+
     def clear(self) -> None:
         self._store.delete_collection()

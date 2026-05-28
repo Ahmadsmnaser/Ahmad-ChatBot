@@ -6,9 +6,10 @@ Provides REST + SSE endpoints for the Next.js frontend.
 from fastapi import Depends, FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from urllib.parse import unquote
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import ALLOWED_ORIGIN_REGEX, ALLOWED_ORIGINS, AVAILABLE_MODELS, MAX_INPUT_LENGTH, logger
+from config import ALLOWED_ORIGIN_REGEX, ALLOWED_ORIGINS, AVAILABLE_MODELS, MAX_INPUT_LENGTH, MAX_UPLOAD_SIZE_BYTES, logger
 from auth import get_current_user
 from database import AsyncSessionLocal, get_db, init_db
 from models import (
@@ -212,6 +213,8 @@ async def upload_file(
     content = await file.read()
     if not content:
         raise HTTPException(400, "Empty file")
+    if len(content) > MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(413, "File too large. Max upload size is 10 MB.")
 
     try:
         pages = extract_text(content, file.filename)
@@ -225,6 +228,20 @@ async def upload_file(
 
     logger.info("RAG upload: session=%s, file=%s, chunks=%d", session_id, file.filename, len(chunks))
     return {"status": "ready", "fileName": file.filename, "chunks": len(chunks)}
+
+
+@app.delete("/api/rag/{session_id}/files/{file_name:path}")
+async def delete_rag_file(
+    session_id: str,
+    file_name: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Delete indexed chunks for one uploaded file in a session."""
+    decoded_file_name = unquote(file_name)
+    rag_key = _rag_key(current_user.id, session_id)
+    if rag_key in _rag_stores:
+        await _rag_stores[rag_key].delete_file(decoded_file_name)
+    return {"status": "deleted", "fileName": decoded_file_name}
 
 
 @app.delete("/api/rag/{session_id}")
