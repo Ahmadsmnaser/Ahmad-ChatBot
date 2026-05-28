@@ -1,4 +1,12 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+const CONFIGURED_API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
+const BASE = CONFIGURED_API_URL ?? (process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : '');
+
+function apiUrl(path: string): string {
+  if (!BASE) {
+    throw new Error('NEXT_PUBLIC_API_URL is not configured for this deployment');
+  }
+  return `${BASE}${path}`;
+}
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -90,27 +98,27 @@ async function parseJson<T>(res: Response): Promise<T> {
 }
 
 export async function fetchHealth(): Promise<{ status: string }> {
-  const res = await fetch(`${BASE}/api/health`);
+  const res = await fetch(apiUrl('/api/health'));
   return parseJson(res);
 }
 
 export async function fetchModels(): Promise<Model[]> {
-  const res = await fetch(`${BASE}/api/models`);
+  const res = await fetch(apiUrl('/api/models'));
   return parseJson(res);
 }
 
 export async function fetchModes(): Promise<Record<string, ModeConfig>> {
-  const res = await fetch(`${BASE}/api/modes`);
+  const res = await fetch(apiUrl('/api/modes'));
   return parseJson(res);
 }
 
 export async function fetchSessions(accessToken?: string): Promise<ChatSession[]> {
-  const res = await fetch(`${BASE}/api/chats`, { headers: authHeaders(accessToken) });
+  const res = await fetch(apiUrl('/api/chats'), { headers: authHeaders(accessToken) });
   return parseJson(res);
 }
 
 export async function createSession(accessToken?: string, title?: string): Promise<ChatSession> {
-  const res = await fetch(`${BASE}/api/chats`, {
+  const res = await fetch(apiUrl('/api/chats'), {
     method: 'POST',
     headers: authHeaders(accessToken, true),
     body: JSON.stringify({ title: title ?? 'New Chat' }),
@@ -119,7 +127,7 @@ export async function createSession(accessToken?: string, title?: string): Promi
 }
 
 export async function fetchSession(accessToken: string | undefined, id: string): Promise<ChatSession> {
-  const res = await fetch(`${BASE}/api/chats/${id}`, { headers: authHeaders(accessToken) });
+  const res = await fetch(apiUrl(`/api/chats/${id}`), { headers: authHeaders(accessToken) });
   return parseJson(res);
 }
 
@@ -128,7 +136,7 @@ export async function updateSession(
   id: string,
   data: { title?: string; messages?: ChatMessage[] }
 ): Promise<ChatSession> {
-  const res = await fetch(`${BASE}/api/chats/${id}`, {
+  const res = await fetch(apiUrl(`/api/chats/${id}`), {
     method: 'PUT',
     headers: authHeaders(accessToken, true),
     body: JSON.stringify(data),
@@ -137,7 +145,7 @@ export async function updateSession(
 }
 
 export async function deleteSession(accessToken: string | undefined, id: string): Promise<{ status: string; id: string }> {
-  const res = await fetch(`${BASE}/api/chats/${id}`, {
+  const res = await fetch(apiUrl(`/api/chats/${id}`), {
     method: 'DELETE',
     headers: authHeaders(accessToken),
   });
@@ -145,7 +153,7 @@ export async function deleteSession(accessToken: string | undefined, id: string)
 }
 
 export async function fetchSettings(accessToken?: string): Promise<UserSettings> {
-  const res = await fetch(`${BASE}/api/settings`, { headers: authHeaders(accessToken) });
+  const res = await fetch(apiUrl('/api/settings'), { headers: authHeaders(accessToken) });
   return parseJson(res);
 }
 
@@ -153,7 +161,7 @@ export async function updateSettingsApi(
   accessToken: string | undefined,
   data: Partial<UserSettings>
 ): Promise<UserSettings> {
-  const res = await fetch(`${BASE}/api/settings`, {
+  const res = await fetch(apiUrl('/api/settings'), {
     method: 'PUT',
     headers: authHeaders(accessToken, true),
     body: JSON.stringify(data),
@@ -182,7 +190,7 @@ export async function uploadFile(
   form.append('session_id', sessionId);
   form.append('file', file);
   onStatus('processing');
-  const res = await fetch(`${BASE}/api/rag/upload`, {
+  const res = await fetch(apiUrl('/api/rag/upload'), {
     method: 'POST',
     headers: authHeaders(accessToken),
     body: form,
@@ -197,7 +205,7 @@ export async function uploadFile(
 }
 
 export async function clearRag(accessToken: string | undefined, sessionId: string): Promise<void> {
-  const res = await fetch(`${BASE}/api/rag/${sessionId}`, {
+  const res = await fetch(apiUrl(`/api/rag/${sessionId}`), {
     method: 'DELETE',
     headers: authHeaders(accessToken),
   });
@@ -214,7 +222,7 @@ export function streamChat(
 ): void {
   const cleanMessages = request.messages.map(({ role, content }) => ({ role, content }));
 
-  fetch(`${BASE}/api/chat`, {
+  fetch(apiUrl('/api/chat'), {
     method: 'POST',
     headers: authHeaders(accessToken, true),
     body: JSON.stringify({ ...request, messages: cleanMessages }),
