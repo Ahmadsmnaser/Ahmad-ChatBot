@@ -8,6 +8,40 @@ Ahmad's Chatbot is a full-stack conversational assistant designed as part of the
 
 The frontend provides a polished chat experience with streaming messages, markdown rendering, chat management, settings, themes, and document upload controls. The backend exposes a typed REST/SSE API, verifies Google ID tokens, stores user data with SQLAlchemy, streams Groq model output through LangChain, and indexes uploaded documents with Chroma embeddings.
 
+## Ahmad Profile Assistant
+
+The app exposes a **public** "Ask Ahmad's Bot" section that does not require sign-in. Visitors can ask questions about Ahmad Naser and receive answers grounded in a verified profile knowledge base.
+
+### How it works
+
+| Layer | Detail |
+|---|---|
+| Profile data | Markdown files in `backend/profile_data/` — `about.md`, `resume.md`, `experience.md`, `projects.md`, `skills.md`, `education.md`, `faq.md`, `links.md` |
+| Profile RAG | `backend/services/profile/` — a **separate** Chroma collection (`ahmad_profile`), loaded once at startup |
+| Public endpoint | `POST /api/public/ask-ahmad` — no auth required, never touches private user chats or uploaded files |
+| Strict prompt | The assistant refuses to invent information. If a fact is not in the profile files it replies: "I do not have verified information about that in Ahmad's profile." |
+| Frontend | `AskAhmadPanel` component renders when the user is not signed in, with mode buttons and suggested questions |
+
+### Difference between the two RAG systems
+
+| | Profile RAG | User-Upload RAG |
+|---|---|---|
+| **Source** | `backend/profile_data/*.md` (static, curated by Ahmad) | Files uploaded by the signed-in user per chat session |
+| **Scope** | Global, shared, public | Private — scoped to one user and one session |
+| **Auth required** | No | Yes (Google sign-in) |
+| **Chroma collection** | `ahmad_profile` (singleton) | `session_<user_id>:<session_id>` (per session) |
+| **Purpose** | Answer recruiter / portfolio questions about Ahmad | Let users chat with their own documents |
+
+### How to update Ahmad's profile
+
+1. Edit any file in `backend/profile_data/`.
+2. Remove placeholder `<!-- TODO: ... -->` comments and replace with real verified content.
+3. Restart the backend — the profile Chroma collection is rebuilt from disk on startup.
+
+> **Important:** Do not add information that has not been verified. The assistant prompt explicitly forbids inventing companies, dates, skills, education, or experience.
+
+---
+
 ## Features
 
 - Google OAuth sign-in with NextAuth.js
@@ -46,9 +80,11 @@ The frontend provides a polished chat experience with streaming messages, markdo
 │   ├── auth.py                 # Google ID token verification
 │   ├── database.py             # Async SQLAlchemy engine/session setup
 │   ├── models_db.py            # ORM models
+│   ├── profile_data/           # Ahmad's verified profile Markdown files
 │   ├── services/
 │   │   ├── modes.py            # Answer mode configuration
-│   │   └── rag/                # Extraction, chunking, retrieval, citations
+│   │   ├── rag/                # Per-session user-upload RAG
+│   │   └── profile/            # Public Ahmad Profile RAG (separate)
 │   └── alembic/                # Database migrations
 ├── frontend/
 │   ├── src/app/                # Next.js app router
@@ -192,6 +228,7 @@ Use the same `GOOGLE_CLIENT_ID` in both backend and frontend env files. The back
 | `PUT` | `/api/settings` | Update user settings |
 | `POST` | `/api/rag/upload` | Upload and index a file for a session |
 | `DELETE` | `/api/rag/{session_id}` | Clear uploaded-file context |
+| `POST` | `/api/public/ask-ahmad` | Public — ask about Ahmad (no auth) |
 
 Authenticated endpoints expect:
 

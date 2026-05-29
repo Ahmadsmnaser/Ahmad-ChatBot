@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { signOut, useSession } from 'next-auth/react';
+import { signIn, signOut, useSession } from 'next-auth/react';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { Message, StreamingMessage } from './Message';
@@ -15,6 +15,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { translations } from '@/lib/i18n';
 import { SettingsModal } from './SettingsModal';
 import { SignInPage } from './SignInPage';
+import { AskAhmadPanel } from './AskAhmadPanel';
 import { Mascot } from './Mascot';
 import { fetchSession, fetchModes, ModeConfig } from '@/lib/api';
 
@@ -281,7 +282,24 @@ export function ChatApp() {
   }
 
   if (status !== 'authenticated' || !accessToken) {
-    return <SignInPage />;
+    return (
+      <main className="flex flex-col min-h-screen bg-white dark:bg-gray-900">
+        {/* Public Ask-Ahmad section */}
+        <div className="flex-1 overflow-y-auto">
+          <AskAhmadPanel />
+        </div>
+        {/* Sign-in banner */}
+        <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-center text-sm text-gray-500 dark:text-gray-400">
+          Want private chats and file uploads?{' '}
+          <button
+            onClick={() => signIn('google')}
+            className="text-blue-600 dark:text-blue-400 underline hover:no-underline font-medium"
+          >
+            Sign in with Google
+          </button>
+        </div>
+      </main>
+    );
   }
 
   return (

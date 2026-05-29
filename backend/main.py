@@ -31,6 +31,9 @@ from services.rag.chunker import chunk_pages
 from services.rag.store import RAGStore
 from services.rag.context_builder import build_context_prompt
 from services.rag.citation_formatter import format_citations
+from services.profile.schemas import AskAhmadRequest
+from services.profile.store import get_profile_store, search_profile
+from services.profile.prompt import build_system_prompt, build_context_block
 from settings_store import get_user_settings, settings_to_dict, update_user_settings
 from chat_store import (
     list_chats,
@@ -72,6 +75,8 @@ async def startup() -> None:
     await init_db()
     async with AsyncSessionLocal() as db:
         await migrate_legacy_chats(db)
+    # Build the profile RAG index eagerly so the first public request is fast
+    get_profile_store()
 
 
 # ── Health Check ──────────────────────────────────────────────────────────────
@@ -252,6 +257,94 @@ async def clear_rag(session_id: str, current_user: User = Depends(get_current_us
         _rag_stores[rag_key].clear()
         del _rag_stores[rag_key]
     return {"status": "cleared"}
+
+
+# ── Public: Ask Ahmad ────────────────────────────────────────────────────────
+
+@app.post("/api/public/ask-ahmad")
+async def ask_ahmad_public(request: AskAhmadRequest):
+    """Public endpoint — no auth required.
+
+    Answers questions about Ahmad Naser using only the verified Profile RAG.
+    Never accesses private user chats or user-uploaded files.
+    Streams response as Server-Sent Events identical in shape to /api/chat.
+    """
+    if len(request.question) > MAX_INPUT_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Question too long ({len(request.question)} chars). Max: {MAX_INPUT_LENGTH}",
+        )
+
+    retrieved = await search_profile(request.question, top_k=5)
+
+    context_block = build_context_block(retrieved)
+    system_prompt = build_system_prompt(request.mode)
+
+    if request.mode == "job_match" and request.job_description:
+        jd_block = f"\n\n## Job Description Provided by Recruiter\n{request.job_description}"
+        system_prompt = system_prompt + jd_block
+
+    system = (context_block + "\n\n" + system_prompt).strip() if context_block else system_prompt
+
+    citations = [
+        {
+            "fileName": c["source_file"],
+            "pageNumber": None,
+            "snippet": c["text"][:200],
+            "score": c["score"],
+            "sectionTitle": c.get("section_title"),
+        }
+        for c in retrieved
+    ]
+
+    grounded = len(retrieved) > 0
+    confidence: str
+    if grounded and len(retrieved) >= 3:
+        confidence = "high"
+    elif grounded:
+        confidence = "medium"
+    else:
+        confidence = "low"
+
+    reasoning_summary = {
+        "mode": f"public:{request.mode}",
+        "usedUploadedFiles": False,
+        "retrievedChunks": len(citations),
+        "usedFiles": list({c["source_file"] for c in retrieved}),
+        "basis": "profile_knowledge_base" if grounded else "no_profile_data",
+        "confidence": confidence,
+        "grounded": grounded,
+    }
+
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": request.question},
+    ]
+
+    logger.info(
+        "Public ask-ahmad: mode=%s, grounded=%s, chunks=%d",
+        request.mode, grounded, len(retrieved),
+    )
+
+    from config import AVAILABLE_MODELS
+    default_model = AVAILABLE_MODELS[0]["id"] if AVAILABLE_MODELS else "llama-3.1-8b-instant"
+
+    return StreamingResponse(
+        stream_llm(
+            messages,
+            model=default_model,
+            temperature=0.3,
+            max_tokens=1024,
+            citations=citations,
+            reasoning_summary=reasoning_summary,
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ── Chat Sessions CRUD ───────────────────────────────────────────────────────

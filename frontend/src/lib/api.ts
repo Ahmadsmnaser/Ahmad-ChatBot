@@ -232,6 +232,63 @@ export async function clearRag(accessToken: string | undefined, sessionId: strin
   if (!res.ok) throw new Error(await res.text());
 }
 
+// ── Public: Ask Ahmad ────────────────────────────────────────────────────────
+
+export type AskAhmadMode = 'portfolio' | 'recruiter' | 'job_match';
+
+export interface AskAhmadRequest {
+  question: string;
+  mode: AskAhmadMode;
+  job_description?: string;
+}
+
+export function askAhmadPublic(
+  request: AskAhmadRequest,
+  signal: AbortSignal,
+  onToken: (token: string) => void,
+  onDone: (metadata?: StreamMetadata) => void,
+  onError: (error: string) => void,
+): void {
+  fetch(apiUrl('/api/public/ask-ahmad'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+    signal,
+  })
+    .then(async (res) => {
+      if (!res.ok) { onError(`HTTP ${res.status}`); return; }
+      const reader = res.body?.getReader();
+      if (!reader) { onError('No response body'); return; }
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() ?? '';
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const json: SSEToken = JSON.parse(line.slice(6));
+            if (json.error) { onError(json.error); return; }
+            if (json.done) { onDone(json.metadata); return; }
+            if (json.token) onToken(json.token);
+          } catch {
+            // skip malformed chunk
+          }
+        }
+      }
+    })
+    .catch((err) => {
+      if (err.name !== 'AbortError') onError(String(err));
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function streamChat(
   accessToken: string | undefined,
   request: ChatRequest,
