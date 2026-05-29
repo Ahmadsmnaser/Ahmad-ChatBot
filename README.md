@@ -1,119 +1,133 @@
 # Ahmad's Chatbot
 
-A production-ready AI chat application built with a Next.js frontend and a FastAPI backend. The app supports Google sign-in, streamed LLM responses, persistent chat history, user settings, multiple answer modes, and session-scoped retrieval over uploaded documents.
-
-## Overview
-
-Ahmad's Chatbot is a full-stack conversational assistant designed as part of the AI Agents Course. It started as a simple chatbot and has evolved into a deployable web app with authentication, database-backed sessions, and RAG-powered file Q&A.
-
-The frontend provides a polished chat experience with streaming messages, markdown rendering, chat management, settings, themes, and document upload controls. The backend exposes a typed REST/SSE API, verifies Google ID tokens, stores user data with SQLAlchemy, streams Groq model output through LangChain, and indexes uploaded documents with Chroma embeddings.
-
-## Ahmad Profile Assistant
-
-The app exposes a **public** "Ask Ahmad's Bot" section that does not require sign-in. Visitors can ask questions about Ahmad Naser and receive answers grounded in a verified profile knowledge base.
-
-### How it works
-
-| Layer | Detail |
-|---|---|
-| Profile data | Markdown files in `backend/profile_data/` — `about.md`, `resume.md`, `experience.md`, `projects.md`, `skills.md`, `education.md`, `faq.md`, `links.md` |
-| Profile RAG | `backend/services/profile/` — a **separate** Chroma collection (`ahmad_profile`), loaded once at startup |
-| Public endpoint | `POST /api/public/ask-ahmad` — no auth required, never touches private user chats or uploaded files |
-| Strict prompt | The assistant refuses to invent information. If a fact is not in the profile files it replies: "I do not have verified information about that in Ahmad's profile." |
-| Frontend | `AskAhmadPanel` component renders when the user is not signed in, with mode buttons and suggested questions |
-
-### Difference between the two RAG systems
-
-| | Profile RAG | User-Upload RAG |
-|---|---|---|
-| **Source** | `backend/profile_data/*.md` (static, curated by Ahmad) | Files uploaded by the signed-in user per chat session |
-| **Scope** | Global, shared, public | Private — scoped to one user and one session |
-| **Auth required** | No | Yes (Google sign-in) |
-| **Chroma collection** | `ahmad_profile` (singleton) | `session_<user_id>:<session_id>` (per session) |
-| **Purpose** | Answer recruiter / portfolio questions about Ahmad | Let users chat with their own documents |
-
-### How to update Ahmad's profile
-
-1. Edit any file in `backend/profile_data/`.
-2. Remove placeholder `<!-- TODO: ... -->` comments and replace with real verified content.
-3. Restart the backend — the profile Chroma collection is rebuilt from disk on startup.
-
-> **Important:** Do not add information that has not been verified. The assistant prompt explicitly forbids inventing companies, dates, skills, education, or experience.
+A production-ready AI chat application and personal portfolio assistant built with Next.js and FastAPI. The app has two distinct modes: a **public portfolio assistant** that lets anyone ask questions about Ahmad Naser, and a **private chat** with document Q&A for signed-in users.
 
 ---
 
-## Features
+## Ask Ahmad's Bot (Public)
 
-- Google OAuth sign-in with NextAuth.js
-- Per-user chat history, messages, and settings
+No sign-in required. When a visitor opens the app without an account, they land on the public portfolio assistant.
+
+Visitors can ask natural questions about Ahmad's background, projects, skills, and experience. The assistant answers using a verified profile knowledge base — it will never invent facts, companies, dates, or skills. If the information is not in the profile, it says so.
+
+**Three question modes:**
+
+| Mode | Purpose |
+|---|---|
+| Portfolio | General questions about Ahmad's work and background |
+| Recruiter | Structured answers optimised for hiring decisions |
+| Job Match | Paste a job description and evaluate Ahmad's fit against it |
+
+**Suggested questions shown to visitors:**
+- Who is Ahmad Naser?
+- What are Ahmad's strongest projects?
+- Is Ahmad a good fit for backend roles?
+- Is Ahmad a good fit for systems / low-level roles?
+- Explain Ahmad's best projects in detail
+- Compare Ahmad to this job description
+
+**How to update the profile:**
+
+Edit any file in `backend/profile_data/` and restart the backend. The index rebuilds automatically from disk on startup.
+
+```
+backend/profile_data/
+  about.md        # Summary, identity, what Ahmad is looking for
+  experience.md   # Work history and internship details
+  projects.md     # Project descriptions and technical highlights
+  skills.md       # Languages, tools, frameworks, AI/RAG, systems
+  education.md    # Degree, courses, applied learning
+  faq.md          # Common recruiter questions with verified answers
+  resume.md       # Resume-format overview
+  links.md        # GitHub, LinkedIn, portfolio, project URLs
+```
+
+> Only add verified, factual information. The assistant prompt explicitly forbids inventing anything not present in these files.
+
+---
+
+## Private Chat (Signed-in users)
+
+Google OAuth sign-in unlocks the full chat experience:
+
+- Persistent chat history across sessions
+- Multiple answer modes: Simple, Deep, Exam, Code, Interview
+- Upload `.pdf`, `.txt`, or `.md` files and ask questions against them
+- Per-user settings: language, font size, theme, sounds
+- Reasoning summaries and citation metadata for file-based answers
+
+---
+
+## Features at a Glance
+
+- Public portfolio assistant — no auth required
+- Google OAuth sign-in via NextAuth.js
 - Streaming assistant responses over Server-Sent Events
-- Multiple answer modes: Simple, Deep, Exam, Code, and Interview
-- Groq-hosted model options including Llama, Mixtral, Qwen, Compound, GPT OSS, and ALLaM
-- RAG uploads for `.pdf`, `.txt`, and `.md` files up to 10 MB
-- Citation metadata and reasoning summaries for uploaded-file answers
-- Markdown and code rendering in chat responses
-- Chat create, rename, delete, export, regenerate, and cancel controls
-- English/Arabic language setting, font size setting, theme selection, and optional sounds
-- SQLite for local development and PostgreSQL/Neon for production
-- Alembic migrations and Docker-ready backend deployment
+- Per-user chat history, messages, and settings backed by PostgreSQL
+- Session-scoped RAG over uploaded documents (Chroma + HuggingFace embeddings)
+- Profile RAG using lightweight keyword search — no PyTorch at startup
+- Multiple Groq-hosted models: Llama 3.1/3.3, Llama 4 Scout, Mixtral, Qwen3, Compound, GPT OSS
+- Markdown and syntax-highlighted code rendering
+- English / Arabic UI with full RTL support
+- SQLite for local development, PostgreSQL/Neon for production
+- Docker-ready backend, Vercel frontend, Render deployment
+
+---
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS |
-| Auth | NextAuth.js v5 with Google OAuth |
+| Frontend | Next.js, React, TypeScript, Tailwind CSS |
+| Auth | NextAuth.js v5, Google OAuth |
 | Backend | FastAPI, Pydantic, Uvicorn |
-| LLM | Groq via LangChain `ChatGroq` |
-| RAG | Chroma, HuggingFace sentence-transformer embeddings, PyPDF |
+| LLM | Groq via LangChain `ChatGroq` (Llama 3.3 70B for public assistant) |
+| Profile RAG | Keyword-overlap search over Markdown files — no ML model required |
+| User RAG | Chroma vector store, HuggingFace sentence-transformer embeddings |
 | Database | SQLAlchemy async ORM, SQLite locally, PostgreSQL/Neon in production |
 | Migrations | Alembic |
-| Deployment | Vercel frontend, Render Docker backend, Neon Postgres |
+| Deployment | Vercel (frontend), Render Docker (backend), Neon Postgres |
+
+---
 
 ## Project Structure
 
-```text
+```
 .
 ├── backend/
-│   ├── main.py                 # FastAPI app, chat, RAG, sessions, settings
-│   ├── llm.py                  # Groq/LangChain streaming integration
+│   ├── main.py                 # FastAPI app — all endpoints
 │   ├── auth.py                 # Google ID token verification
-│   ├── database.py             # Async SQLAlchemy engine/session setup
+│   ├── llm.py                  # Groq/LangChain streaming
+│   ├── database.py             # Async SQLAlchemy setup
 │   ├── models_db.py            # ORM models
 │   ├── profile_data/           # Ahmad's verified profile Markdown files
-│   ├── services/
-│   │   ├── modes.py            # Answer mode configuration
-│   │   ├── rag/                # Per-session user-upload RAG
-│   │   └── profile/            # Public Ahmad Profile RAG (separate)
-│   └── alembic/                # Database migrations
+│   └── services/
+│       ├── modes.py            # Answer mode configuration
+│       ├── rag/                # User-upload RAG (Chroma + HuggingFace)
+│       └── profile/            # Public profile RAG (keyword search)
 ├── frontend/
 │   ├── src/app/                # Next.js app router
-│   ├── src/components/         # Chat UI components
+│   ├── src/components/
+│   │   ├── AskAhmadPanel.tsx   # Public portfolio assistant UI
+│   │   └── ChatApp.tsx         # Authenticated chat UI
 │   ├── src/hooks/              # Chat, sessions, settings, RAG hooks
 │   └── src/lib/                # API client, i18n, markdown helpers
-├── DEPLOYMENT.md               # Vercel + Render + Neon deployment guide
 ├── render.yaml                 # Render backend service definition
 └── README.md
 ```
 
-## Prerequisites
-
-- Python 3.12 recommended
-- Node.js 20.9 or newer
-- Groq API key
-- Google OAuth client ID and secret
-- Optional for production: Neon PostgreSQL database
+---
 
 ## Local Development
 
-### 1. Clone the repository
+### 1. Clone
 
 ```bash
-git clone <your-repo-url>
-cd chatbot_streamlit
+git clone https://github.com/Ahmadsmnaser/Ahmad-ChatBot
+cd Ahmad-ChatBot
 ```
 
-### 2. Configure the backend
+### 2. Backend
 
 ```bash
 cd backend
@@ -123,7 +137,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Update `backend/.env`:
+`backend/.env`:
 
 ```env
 GROQ_API_KEY=your-groq-api-key
@@ -132,23 +146,11 @@ DATABASE_URL=sqlite+aiosqlite:///./data/chatbot.db
 ALLOWED_ORIGINS=http://localhost:3000
 ```
 
-For local SQLite development, the backend creates tables on startup. If you use PostgreSQL locally, run migrations:
-
-```bash
-alembic -c alembic.ini upgrade head
-```
-
-Start the backend:
-
 ```bash
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The API will be available at `http://localhost:8000`.
-
-### 3. Configure the frontend
-
-In a second terminal:
+### 3. Frontend
 
 ```bash
 cd frontend
@@ -156,126 +158,69 @@ npm install
 cp .env.example .env.local
 ```
 
-Update `frontend/.env.local`:
+`frontend/.env.local`:
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8000
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
-NEXTAUTH_SECRET=generate-a-long-random-secret
+NEXTAUTH_SECRET=any-long-random-string
 NEXTAUTH_URL=http://localhost:3000
 ```
-
-Start the frontend:
 
 ```bash
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000` — the public assistant loads immediately without signing in.
 
-## Google OAuth Setup
+---
 
-Create an OAuth client in Google Cloud Console and add these local URLs:
+## API Reference
 
-```text
-Authorized JavaScript origin:
-http://localhost:3000
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/api/health` | — | Health check |
+| `GET` | `/api/models` | — | Available LLM models |
+| `GET` | `/api/modes` | — | Answer mode configs |
+| `POST` | `/api/public/ask-ahmad` | **None** | Public portfolio assistant |
+| `POST` | `/api/chat` | Bearer | Stream private chat response |
+| `GET` | `/api/chats` | Bearer | List user's chat sessions |
+| `POST` | `/api/chats` | Bearer | Create chat session |
+| `GET` | `/api/chats/{id}` | Bearer | Load chat with messages |
+| `PUT` | `/api/chats/{id}` | Bearer | Rename or save messages |
+| `DELETE` | `/api/chats/{id}` | Bearer | Delete chat session |
+| `GET` | `/api/settings` | Bearer | Load user settings |
+| `PUT` | `/api/settings` | Bearer | Update user settings |
+| `POST` | `/api/rag/upload` | Bearer | Upload and index a file |
+| `DELETE` | `/api/rag/{session_id}` | Bearer | Clear session files |
 
-Authorized redirect URI:
-http://localhost:3000/api/auth/callback/google
-```
-
-Use the same `GOOGLE_CLIENT_ID` in both backend and frontend env files. The backend validates the Google ID token sent by the frontend on authenticated API requests.
-
-## Environment Variables
-
-### Backend
-
-| Variable | Required | Description |
-|---|---:|---|
-| `GROQ_API_KEY` | Yes | API key for Groq model inference |
-| `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID used to verify ID tokens |
-| `DATABASE_URL` | No | Defaults to local SQLite if omitted |
-| `ALLOWED_ORIGINS` | No | Comma-separated frontend origins for CORS |
-| `ALLOWED_ORIGIN_REGEX` | No | Optional regex for preview deployment origins |
-| `FRONTEND_ORIGIN` | No | Convenience default for CORS |
-
-### Frontend
-
-| Variable | Required | Description |
-|---|---:|---|
-| `NEXT_PUBLIC_API_URL` | Yes | Public URL of the FastAPI backend |
-| `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth client secret |
-| `NEXTAUTH_SECRET` | Yes | Secret used by NextAuth |
-| `NEXTAUTH_URL` | Yes | Canonical frontend URL |
-
-## API Highlights
-
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `GET` | `/api/health` | Backend health check |
-| `GET` | `/api/models` | List available LLM models |
-| `GET` | `/api/modes` | List answer mode defaults |
-| `POST` | `/api/chat` | Stream assistant response as SSE |
-| `GET` | `/api/chats` | List the authenticated user's chats |
-| `POST` | `/api/chats` | Create a chat session |
-| `GET` | `/api/chats/{chat_id}` | Load a chat session |
-| `PUT` | `/api/chats/{chat_id}` | Rename or persist chat messages |
-| `DELETE` | `/api/chats/{chat_id}` | Delete a chat session |
-| `GET` | `/api/settings` | Load user settings |
-| `PUT` | `/api/settings` | Update user settings |
-| `POST` | `/api/rag/upload` | Upload and index a file for a session |
-| `DELETE` | `/api/rag/{session_id}` | Clear uploaded-file context |
-| `POST` | `/api/public/ask-ahmad` | Public — ask about Ahmad (no auth) |
-
-Authenticated endpoints expect:
-
+Authenticated endpoints require:
 ```http
 Authorization: Bearer <google-id-token>
 ```
 
-## RAG Workflow
-
-1. The user uploads a `.pdf`, `.txt`, or `.md` file from a chat session.
-2. The backend extracts text, chunks it, and stores embeddings in a Chroma collection scoped to that user and session.
-3. On each chat request, the backend retrieves relevant chunks according to the active answer mode.
-4. Retrieved context is injected into the system prompt.
-5. The streamed response includes citations and a reasoning summary for the frontend.
+---
 
 ## Deployment
 
-This repository is prepared for:
+- **Frontend:** Vercel — connect the repo, set root to `frontend/`
+- **Backend:** Render — Docker build from `backend/Dockerfile`
+- **Database:** Neon serverless PostgreSQL
 
-- Frontend on Vercel from the `frontend` directory
-- Backend on Render using `backend/Dockerfile`
-- PostgreSQL on Neon
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the full checklist.
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for the full deployment checklist.
-
-## Useful Commands
-
-```bash
-# Backend
-cd backend
-source venv/bin/activate
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-alembic -c alembic.ini upgrade head
-
-# Frontend
-cd frontend
-npm run dev
-npm run build
-```
+---
 
 ## Notes
 
-- Do not commit real `.env` or `.env.local` files.
-- Local SQLite is useful for development; use PostgreSQL for production.
-- Uploaded RAG content is currently indexed in runtime Chroma collections, so production persistence depends on the vector-store deployment strategy.
-- Render free services may sleep after inactivity, causing the first request to be slower.
+- The public assistant uses keyword search over the profile Markdown files — no ML model is loaded at startup, keeping memory usage well within free-tier limits.
+- The user-upload RAG (Chroma + HuggingFace embeddings) loads its model lazily on first file upload, not at startup.
+- Do not commit `.env` or `.env.local` files.
+- Render free services sleep after inactivity; the first request after sleep will be slower.
+
+---
 
 ## License
 
-This project is for educational purposes as part of the AI Agents Course.
+Educational project — part of the AI Agents Course.
